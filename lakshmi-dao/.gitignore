@@ -1,0 +1,19 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Hardhat
+cache/
+artifacts/
+typechain-types/
+
+# dotenv
+.env
+
+# IDE specific
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
