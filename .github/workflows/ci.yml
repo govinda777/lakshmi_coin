@@ -48,7 +48,7 @@ jobs:
           node-version: '18'
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci # Changed from npm install
 
       - name: Run frontend tests (Jest/ESLint)
         run: npm run test -- --watchAll=false
