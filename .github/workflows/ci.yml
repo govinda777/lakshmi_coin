@@ -22,7 +22,7 @@ jobs:
           node-version: '18'
 
       - name: Install backend dependencies
-        run: npm install
+        run: npm ci # Changed from npm install
 
       - name: Compile smart contracts
         run: npm run compile
