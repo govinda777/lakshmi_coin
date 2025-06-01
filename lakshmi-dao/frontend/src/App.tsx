@@ -16,6 +16,14 @@ import CreateProposalPage from './pages/CreateProposalPage';
 import ProposalDetailPage from './pages/ProposalDetailPage';
 import AdminPage from './pages/AdminPage'; // Optional: For DAO admin functions
 import NotFoundPage from './pages/NotFoundPage';
+import AboutPage from './pages/AboutPage';
+import TokenomicsPage from './pages/TokenomicsPage';
+import RoadmapPage from './pages/RoadmapPage';
+import MissionsPage from './pages/MissionsPage';
+import StakingPage from './pages/StakingPage';
+import AirdropPage from './pages/AirdropPage';
+import MembershipPage from './pages/MembershipPage'; // Import MembershipPage
+import { AppProvider } from './contexts/AppContext';
 
 // Configure chains & providers
 // Replace with your Alchemy API key or use other providers
@@ -55,23 +63,32 @@ function App() {
   return (
     <WagmiConfig config={wagmiConfig}>
       <RainbowKitProvider chains={chains} appInfo={appInfo} modalSize="compact">
-        <Router>
-          <div className="flex flex-col min-h-screen bg-gray-50">
-            <Navbar />
-            <main className="flex-grow container mx-auto px-4 py-8">
-              <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/donate" element={<DonatePage />} />
-                <Route path="/proposals" element={<ProposalsPage />} />
-                <Route path="/proposals/new" element={<CreateProposalPage />} />
-                <Route path="/proposals/:proposalId" element={<ProposalDetailPage />} />
-                <Route path="/admin" element={<AdminPage />} /> {/* Optional */}
-                <Route path="*" element={<NotFoundPage />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </Router>
+        <AppProvider>
+          <Router>
+            <div className="flex flex-col min-h-screen bg-gray-50">
+              <Navbar />
+              <main className="flex-grow container mx-auto px-4 py-8">
+                <Routes>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/donate" element={<DonatePage />} />
+                  <Route path="/proposals" element={<ProposalsPage />} />
+                  <Route path="/proposals/new" element={<CreateProposalPage />} />
+                  <Route path="/proposals/:proposalId" element={<ProposalDetailPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/tokenomics" element={<TokenomicsPage />} />
+                  <Route path="/roadmap" element={<RoadmapPage />} />
+                  <Route path="/missions" element={<MissionsPage />} />
+                  <Route path="/staking" element={<StakingPage />} />
+                  <Route path="/airdrop" element={<AirdropPage />} />
+                  <Route path="/membership" element={<MembershipPage />} /> {/* Add Membership route */}
+                  <Route path="/admin" element={<AdminPage />} /> {/* Optional */}
+                  <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+          </Router>
+        </AppProvider>
       </RainbowKitProvider>
     </WagmiConfig>
   );
