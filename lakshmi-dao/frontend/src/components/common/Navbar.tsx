@@ -22,6 +22,27 @@ const Navbar: React.FC = () => {
             <Link to="/proposals" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
               Proposals
             </Link>
+            <Link to="/about" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              About
+            </Link>
+            <Link to="/tokenomics" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              Tokenomics
+            </Link>
+            <Link to="/roadmap" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              Roadmap
+            </Link>
+            <Link to="/missions" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              Missions
+            </Link>
+            <Link to="/staking" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              Staking
+            </Link>
+            <Link to="/airdrop" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              Airdrop
+            </Link>
+            <Link to="/membership" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
+              Membership
+            </Link>
             <Link to="/proposals/new" className="text-gray-100 hover:text-white px-3 py-2 rounded-md text-sm font-medium">
               Create Proposal
             </Link>

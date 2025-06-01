@@ -2,13 +2,17 @@ import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Proposal } from '../components/proposal/ProposalCard'; // Assuming Proposal type is defined here
 
 // Define the shape of your context state
+import { useAccount } from 'wagmi';
+
+// Define the shape of your context state
 interface AppContextState {
   // Example state:
   // proposals: Proposal[];
   // isLoadingProposals: boolean;
   // error: string | null;
   // fetchProposals: () => Promise<void>;
-  userAddress?: string; // from wagmi or other wallet connector
+  userAddress?: `0x${string}`; // from wagmi useAccount
+  isWalletConnected: boolean; // from wagmi useAccount
   // Add other global state or functions your app might need
 }
 
