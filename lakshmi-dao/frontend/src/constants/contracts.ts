@@ -5,9 +5,18 @@
 // --- Contract Addresses ---
 // Replace these with your deployed contract addresses.
 // You might get these from your deployment script output or a configuration file.
-export const LAKSHMI_ZRC20_ADDRESS = process.env.REACT_APP_LAKSHMI_ZRC20_ADDRESS || "0xYourLakshmiZRC20Address";
-export const DONATION_VAULT_ADDRESS = process.env.REACT_APP_DONATION_VAULT_ADDRESS || "0xYourDonationVaultAddress";
-export const GOVERNANCE_DAO_ADDRESS = process.env.REACT_APP_GOVERNANCE_DAO_ADDRESS || "0xYourGovernanceDAOAddress";
+
+// Default (e.g., Sepolia or local)
+export const LAKSHMI_ZRC20_ADDRESS_DEFAULT = process.env.REACT_APP_LAKSHMI_ZRC20_ADDRESS || "0xYourDefaultLakshmiZRC20Address";
+export const DONATION_VAULT_ADDRESS_DEFAULT = process.env.REACT_APP_DONATION_VAULT_ADDRESS || "0xYourDefaultDonationVaultAddress";
+export const GOVERNANCE_DAO_ADDRESS_DEFAULT = process.env.REACT_APP_GOVERNANCE_DAO_ADDRESS || "0xYourDefaultGovernanceDAOAddress";
+
+// ZetaChain Specific Addresses
+export const LAKSHMI_ZRC20_ADDRESS_ZETACHAIN = process.env.REACT_APP_LAKSHMI_ZRC20_ADDRESS_ZETACHAIN || "YOUR_LAKSHMI_ZRC20_ADDRESS_ON_ZETACHAIN";
+// Add other ZetaChain specific addresses if needed, e.g.:
+// export const DONATION_VAULT_ADDRESS_ZETACHAIN = process.env.REACT_APP_DONATION_VAULT_ADDRESS_ZETACHAIN || "YOUR_DONATION_VAULT_ADDRESS_ON_ZETACHAIN";
+// export const GOVERNANCE_DAO_ADDRESS_ZETACHAIN = process.env.REACT_APP_GOVERNANCE_DAO_ADDRESS_ZETACHAIN || "YOUR_GOVERNANCE_DAO_ADDRESS_ON_ZETACHAIN";
+
 
 // --- ABIs ---
 // It's common to import ABIs as JSON or directly from TypeChain generated types.
@@ -29,16 +38,29 @@ export const GOVERNANCE_DAO_ABI_PLACEHOLDER: any[] = [ /* Minimal ABI */ ];
 // --- Verification ---
 // It's good practice to ensure these addresses are actually set, especially from .env files.
 if (process.env.NODE_ENV !== 'test') { // Don't log during tests
-    if (LAKSHMI_ZRC20_ADDRESS === "0xYourLakshmiZRC20Address") {
-        console.warn("LakshmiZRC20 contract address not set in .env. Placeholder is being used.");
+    if (LAKSHMI_ZRC20_ADDRESS_DEFAULT === "0xYourDefaultLakshmiZRC20Address") {
+        console.warn("Default LakshmiZRC20 contract address not set in .env. Placeholder is being used for default network.");
     }
-    if (DONATION_VAULT_ADDRESS === "0xYourDonationVaultAddress") {
-        console.warn("DonationVault contract address not set in .env. Placeholder is being used.");
+    if (LAKSHMI_ZRC20_ADDRESS_ZETACHAIN === "YOUR_LAKSHMI_ZRC20_ADDRESS_ON_ZETACHAIN") {
+        console.warn("ZetaChain LakshmiZRC20 contract address not set in .env. Placeholder is being used for ZetaChain.");
     }
-    if (GOVERNANCE_DAO_ADDRESS === "0xYourGovernanceDAOAddress") {
-        console.warn("GovernanceDAO contract address not set in .env. Placeholder is being used.");
-    }
+    // Add similar warnings for other default and ZetaChain-specific addresses if they are critical
 }
+
+export const ZETACHAIN_ATHENS_3_CHAIN_ID = 7001;
+
+// Function to get the correct LakshmiZRC20 address based on chainId
+export const getLakshmiZrc20Address = (chainId?: number): `0x${string}` | undefined => {
+  if (chainId === ZETACHAIN_ATHENS_3_CHAIN_ID) {
+    if (LAKSHMI_ZRC20_ADDRESS_ZETACHAIN === "YOUR_LAKSHMI_ZRC20_ADDRESS_ON_ZETACHAIN") return undefined; // Not configured
+    return LAKSHMI_ZRC20_ADDRESS_ZETACHAIN as `0x${string}`;
+  }
+  // Fallback to default (e.g., Sepolia or local Hardhat network if configured)
+  if (LAKSHMI_ZRC20_ADDRESS_DEFAULT === "0xYourDefaultLakshmiZRC20Address") return undefined; // Not configured
+  return LAKSHMI_ZRC20_ADDRESS_DEFAULT as `0x${string}`;
+};
+// Add similar getter functions for other contracts if they also have per-network addresses
+
 
 // How to get ABIs after compilation with Hardhat:
 // 1. After running `npx hardhat compile`, Hardhat generates artifacts in the `lakshmi-dao/artifacts/contracts/` directory.

@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { WagmiConfig, configureChains, createConfig } from 'wagmi';
+import { WagmiConfig, configureChains, createConfig, Chain } from 'wagmi'; // Import Chain type
 import { sepolia } from 'wagmi/chains';
 import { alchemyProvider } from 'wagmi/providers/alchemy';
 import { publicProvider } from 'wagmi/providers/public';
@@ -29,8 +29,28 @@ import { AppProvider } from './contexts/AppContext';
 // Replace with your Alchemy API key or use other providers
 const alchemyApiKey = process.env.REACT_APP_ALCHEMY_API_KEY || ""; // Ensure you have this in .env
 
+// Define ZetaChain Athens 3 Testnet configuration
+const zetaChainAthens3Testnet: Chain = {
+  id: 7001,
+  name: 'ZetaChain Athens 3 Testnet',
+  network: 'zetachain-athens-3',
+  nativeCurrency: {
+    name: 'ZETA',
+    symbol: 'ZETA',
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: { http: ['https://zetachain-athens-evm.blockpi.network/v1/rpc/public'] },
+    public: { http: ['https://zetachain-athens-evm.blockpi.network/v1/rpc/public'] },
+  },
+  blockExplorers: {
+    default: { name: 'Blockscout', url: 'https://zetachain-athens-3.blockscout.com/' },
+  },
+  testnet: true,
+};
+
 const { chains, publicClient, webSocketPublicClient } = configureChains(
-  [sepolia], // Add other chains like mainnet, polygon, etc., if needed
+  [sepolia, zetaChainAthens3Testnet], // Add ZetaChain to the list of supported chains
   [alchemyProvider({ apiKey: alchemyApiKey }), publicProvider()]
 );
 

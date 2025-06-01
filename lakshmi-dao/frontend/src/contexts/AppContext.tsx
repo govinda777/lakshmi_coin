@@ -1,19 +1,18 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Proposal } from '../components/proposal/ProposalCard'; // Assuming Proposal type is defined here
+import React, { createContext, useContext, ReactNode } from 'react'; // Removed useState for now as it's unused
+// import { Proposal } from '../components/proposal/ProposalCard'; // Assuming Proposal type is defined here, commented if not used directly in this file now
 
 // Define the shape of your context state
 import { useAccount } from 'wagmi';
 
 // Define the shape of your context state
 interface AppContextState {
-  // Example state:
+  userAddress?: `0x${string}`;
+  isWalletConnected: boolean;
+  // Example state (commented out as not implemented):
   // proposals: Proposal[];
   // isLoadingProposals: boolean;
   // error: string | null;
   // fetchProposals: () => Promise<void>;
-  userAddress?: `0x${string}`; // from wagmi useAccount
-  isWalletConnected: boolean; // from wagmi useAccount
-  // Add other global state or functions your app might need
 }
 
 // Create the context with a default undefined value
@@ -53,12 +52,15 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   //   }
   // };
 
+  const { address, isConnected } = useAccount();
+
   const contextValue: AppContextState = {
+    userAddress: address,
+    isWalletConnected: isConnected,
     // proposals,
     // isLoadingProposals,
     // error,
     // fetchProposals,
-    // You can get userAddress from useAccount() from wagmi if needed globally
   };
 
   return (

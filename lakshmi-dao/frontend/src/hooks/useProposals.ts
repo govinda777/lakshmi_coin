@@ -60,9 +60,22 @@ export const useProposal = (proposalId: string | number) => {
 };
 
 
+import { InfiniteData } from 'wagmi'; // Import InfiniteData
+
+// Define the return type for the useProposals hook
+interface UseProposalsReturn {
+  proposals: Proposal[];
+  isLoading: boolean;
+  isFetchingNextPage: boolean;
+  error: Error | null;
+  fetchNextPage: (options?: any) => Promise<any>;
+  hasNextPage?: boolean;
+  refetchProposals: (options?: any) => Promise<any>;
+}
+
 // Hook to fetch all proposals (or a paginated list)
 // This is a more complex example using useContractInfiniteReads for pagination
-export const useProposals = (pageSize: number = 10) => {
+export const useProposals = (pageSize: number = 10): UseProposalsReturn => {
     const { address } = useAccount();
 
     // Get total number of proposals to determine pagination
@@ -87,7 +100,7 @@ export const useProposals = (pageSize: number = 10) => {
     } = useContractInfiniteReads({
         cacheKey: 'allProposals',
         enabled: totalProposals > 0 && GOVERNANCE_DAO_ADDRESS_PLACEHOLDER !== "0xYourGovernanceDAOContractAddress",
-        async getPageParam(lastPage, allPages) {
+        async getNextPageParam(lastPage, allPages) { // Renamed getPageParam to getNextPageParam
             const proposalsFetched = allPages.flat().length;
             if (proposalsFetched < totalProposals) {
                 // The "page param" here is the starting index for the next batch of proposal IDs to fetch
@@ -128,16 +141,15 @@ export const useProposals = (pageSize: number = 10) => {
             }
             return contractsConfig;
         },
-        select: (pageData: any) => { // `pageData` is the raw output from contracts call for a page
-            if (!pageData || !pageData.pages) return { pages: [], pageParams: [] }; // Wagmi expects this structure
-            return {
-                ...pageData,
-                pages: pageData.pages.map((pageResults: any[]) => // pageResults is an array of proposal structs for that page
-                    pageResults.map((data: any) => {
-                        if (!data || data.status === "failure") return null; // Handle individual call failure
-                        const result = data.result; // Actual proposal struct
-                        return {
-                            id: BigNumber.from(result.id).toString(),
+        select: (pageData: { pages: { result?: any; status: "success" | "failure"; error?: Error }[][] , pageParams: any[] }) => {
+            if (!pageData || !pageData.pages) return { pages: [] as Proposal[][], pageParams: pageData?.pageParams || [] };
+
+            const newPages: Proposal[][] = pageData.pages.map((pageResults) =>
+                pageResults.map((data) => {
+                    if (data.status === "failure" || !data.result) return null;
+                    const result = data.result;
+                    return {
+                        id: BigNumber.from(result.id).toString(),
                             proposer: result.proposer,
                             title: result.description,
                             description: result.description,
@@ -152,13 +164,13 @@ export const useProposals = (pageSize: number = 10) => {
                             callData: result.callData,
                             value: BigNumber.from(result.value).toString(),
                         } as Proposal;
-                    }).filter(p => p !== null) // Filter out any nulls from failed calls
-                ),
-            };
+                    }).filter(p => p !== null) as Proposal[] // Ensure inner map results in Proposal[]
+            );
+            return { pages: newPages, pageParams: pageData.pageParams };
         },
     });
 
-    const proposals = data?.pages.flat() || [];
+    const proposals: Proposal[] = data?.pages.flat() || []; // Explicitly type proposals
 
     // If the contract address is not set, return a message or empty state
     if (GOVERNANCE_DAO_ADDRESS_PLACEHOLDER === "0xYourGovernanceDAOContractAddress") {
@@ -166,16 +178,21 @@ export const useProposals = (pageSize: number = 10) => {
             proposals: [],
             isLoading: false,
             error: new Error("GovernanceDAO contract address not set in frontend/src/hooks/useProposals.ts"),
-            fetchNextPage: () => {},
+            fetchNextPage: async () => {}, // Make async to match expected type
             hasNextPage: false,
             isFetchingNextPage: false,
-            refetchProposals: () => {},
+            refetchProposals: async () => {}, // Make async to match expected type
         };
     }
 
+    // Type assertion for the data returned by useContractInfiniteReads after select
+    const typedData = data as InfiniteData<{ pages: Proposal[][], pageParams: any[] }> | undefined;
+    const fetchedProposals: Proposal[] = typedData?.pages.flat() || [];
+
+
     return {
-        proposals,
-        isLoading: isLoading && !data, // True initial loading
+        proposals: fetchedProposals, // Use a different name for the returned property value
+        isLoading: isLoading && !typedData, // True initial loading
         isFetchingNextPage,
         error,
         fetchNextPage,

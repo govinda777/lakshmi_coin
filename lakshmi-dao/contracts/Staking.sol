@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; // For security on stake/unstake/claim
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol"; // For security on stake/unstake/claim
 import "./LakshmiZRC20.sol"; // Assuming LakshmiZRC20 is our $LUCK token
 
 contract Staking is Ownable, ReentrancyGuard {
@@ -75,18 +75,18 @@ contract Staking is Ownable, ReentrancyGuard {
      * This is a view function and does not change state.
      */
     function calculateReward(address _stakerAddress) public view returns (uint256) {
-        StakeInfo storage stake = stakers[_stakerAddress];
-        if (stake.amount == 0) {
-            return stake.accruedReward; // Return any previously accrued but not yet updated reward
+        StakeInfo storage stakeRecord = stakers[_stakerAddress];
+        if (stakeRecord.amount == 0) {
+            return stakeRecord.accruedReward; // Return any previously accrued but not yet updated reward
         }
 
-        uint256 timeElapsed = block.timestamp - stake.sinceTimestamp;
+        uint256 timeElapsed = block.timestamp - stakeRecord.sinceTimestamp;
         // Reward = amount * timeElapsed * rate / precision
-        // (stake.amount * timeElapsed * rewardRatePerSecond) could overflow easily.
-        // So, (stake.amount / REWARD_PRECISION) * timeElapsed * rewardRatePerSecond
-        // Or, (timeElapsed * rewardRatePerSecond * stake.amount) / REWARD_PRECISION
-        uint256 newRewards = (stake.amount * timeElapsed * rewardRatePerSecond) / REWARD_PRECISION;
-        return stake.accruedReward + newRewards;
+        // (stakeRecord.amount * timeElapsed * rewardRatePerSecond) could overflow easily.
+        // So, (stakeRecord.amount / REWARD_PRECISION) * timeElapsed * rewardRatePerSecond
+        // Or, (timeElapsed * rewardRatePerSecond * stakeRecord.amount) / REWARD_PRECISION
+        uint256 newRewards = (stakeRecord.amount * timeElapsed * rewardRatePerSecond) / REWARD_PRECISION;
+        return stakeRecord.accruedReward + newRewards;
     }
 
     /**
@@ -94,16 +94,16 @@ contract Staking is Ownable, ReentrancyGuard {
      * This should be called before any action that changes stake amount or claims rewards.
      */
     function _updateAccruedReward(address _stakerAddress) internal {
-        StakeInfo storage stake = stakers[_stakerAddress];
-        if (stake.amount > 0) { // Only calculate if currently staking
-             uint256 timeElapsed = block.timestamp - stake.sinceTimestamp;
+        StakeInfo storage stakeRecord = stakers[_stakerAddress];
+        if (stakeRecord.amount > 0) { // Only calculate if currently staking
+             uint256 timeElapsed = block.timestamp - stakeRecord.sinceTimestamp;
              if (timeElapsed > 0) {
-                uint256 newRewards = (stake.amount * timeElapsed * rewardRatePerSecond) / REWARD_PRECISION;
-                stake.accruedReward += newRewards;
+                uint256 newRewards = (stakeRecord.amount * timeElapsed * rewardRatePerSecond) / REWARD_PRECISION;
+                stakeRecord.accruedReward += newRewards;
              }
         }
         // Always update the timestamp to current block time for next calculation period
-        stake.sinceTimestamp = block.timestamp;
+        stakeRecord.sinceTimestamp = block.timestamp;
     }
 
 
@@ -112,14 +112,14 @@ contract Staking is Ownable, ReentrancyGuard {
 
         _updateAccruedReward(msg.sender); // Update rewards before changing stake
 
-        StakeInfo storage stake = stakers[msg.sender];
+        StakeInfo storage stakeRecord = stakers[msg.sender];
 
         bool success = luckToken.transferFrom(msg.sender, address(this), _amount);
         require(success, "Staking: LUCK token transfer failed");
 
-        stake.amount += _amount;
+        stakeRecord.amount += _amount;
         totalStakedAmount += _amount;
-        // stake.sinceTimestamp is updated by _updateAccruedReward
+        // stakeRecord.sinceTimestamp is updated by _updateAccruedReward
 
         emit Staked(msg.sender, _amount);
     }
@@ -128,18 +128,18 @@ contract Staking is Ownable, ReentrancyGuard {
      * @dev Unstakes tokens and pays out any pending rewards.
      */
     function unstake(uint256 _amount) external nonReentrant {
-        StakeInfo storage stake = stakers[msg.sender];
+        StakeInfo storage stakeRecord = stakers[msg.sender];
         require(_amount > 0, "Staking: Cannot unstake 0 tokens");
-        require(stake.amount >= _amount, "Staking: Insufficient staked amount");
+        require(stakeRecord.amount >= _amount, "Staking: Insufficient staked amount");
 
         _updateAccruedReward(msg.sender); // Calculate and store rewards up to this point
 
-        uint256 rewardToPay = stake.accruedReward;
-        stake.accruedReward = 0; // Reset accrued reward after calculation
+        uint256 rewardToPay = stakeRecord.accruedReward;
+        stakeRecord.accruedReward = 0; // Reset accrued reward after calculation
 
-        stake.amount -= _amount;
+        stakeRecord.amount -= _amount;
         totalStakedAmount -= _amount;
-        // stake.sinceTimestamp is updated by _updateAccruedReward
+        // stakeRecord.sinceTimestamp is updated by _updateAccruedReward
 
         // Transfer staked tokens back
         bool sentStaked = luckToken.transfer(msg.sender, _amount);
@@ -164,12 +164,12 @@ contract Staking is Ownable, ReentrancyGuard {
     function claimReward() external nonReentrant {
         _updateAccruedReward(msg.sender); // Calculate and store rewards up to this point
 
-        StakeInfo storage stake = stakers[msg.sender];
-        uint256 rewardToClaim = stake.accruedReward;
+        StakeInfo storage stakeRecord = stakers[msg.sender];
+        uint256 rewardToClaim = stakeRecord.accruedReward;
         require(rewardToClaim > 0, "Staking: No rewards to claim");
 
-        stake.accruedReward = 0; // Reset after claiming
-        // stake.sinceTimestamp is updated by _updateAccruedReward
+        stakeRecord.accruedReward = 0; // Reset after claiming
+        // stakeRecord.sinceTimestamp is updated by _updateAccruedReward
 
         require(luckToken.balanceOf(address(this)) >= rewardToClaim, "Staking: Contract has insufficient LUCK for rewards");
         bool sentReward = luckToken.transfer(msg.sender, rewardToClaim);
@@ -181,9 +181,9 @@ contract Staking is Ownable, ReentrancyGuard {
     // --- View Functions ---
 
     function getStakeInfo(address _stakerAddress) public view returns (uint256 currentStake, uint256 currentReward, uint256 lastUpdateTime) {
-        StakeInfo storage stake = stakers[_stakerAddress];
-        uint256 pendingReward = calculateReward(_stakerAddress); // This includes stake.accruedReward + new since last interaction
-        return (stake.amount, pendingReward, stake.sinceTimestamp);
+        StakeInfo storage stakeRecord = stakers[_stakerAddress];
+        uint256 pendingReward = calculateReward(_stakerAddress); // This includes stakeRecord.accruedReward + new since last interaction
+        return (stakeRecord.amount, pendingReward, stakeRecord.sinceTimestamp);
     }
 
     function totalStaked() public view returns (uint256) {

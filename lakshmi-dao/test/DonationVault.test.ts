@@ -12,30 +12,46 @@ describe("DonationVault", function () {
     let donor2: SignerWithAddress;
     let recipient: SignerWithAddress;
     let nonGovernance: SignerWithAddress;
-
-    const initialLakshmiSupply = ethers.utils.parseEther("1000000");
+    let initialLakshmiSupply: BigNumber; // Define type, initialize in beforeEach
 
     beforeEach(async function () {
         [owner, donor1, donor2, recipient, nonGovernance] = await ethers.getSigners();
+        initialLakshmiSupply = ethers.utils.parseEther("1000000"); // Initialize here
+        const chainId = (await ethers.provider.getNetwork()).chainId;
 
         // Deploy LakshmiZRC20
         const LakshmiZRC20Factory = await ethers.getContractFactory("LakshmiZRC20");
-        lakshmiToken = (await LakshmiZRC20Factory.deploy(initialLakshmiSupply)) as LakshmiZRC20;
+        lakshmiToken = (await LakshmiZRC20Factory.deploy(
+            initialLakshmiSupply,
+            owner.address, // treasuryAddress
+            chainId,
+            2000000, // gasLimit
+            ethers.constants.AddressZero, // systemContract
+            ethers.constants.AddressZero  // gatewayAddress
+        )) as LakshmiZRC20;
         await lakshmiToken.deployed();
 
         // Deploy DonationVault
+        // Constructor: constructor(address _initialOwner, address _governanceDAOAddress, address _lakshmiTokenAddress)
         const DonationVaultFactory = await ethers.getContractFactory("DonationVault");
-        donationVault = (await DonationVaultFactory.deploy(lakshmiToken.address)) as DonationVault;
+        donationVault = (await DonationVaultFactory.deploy(
+            owner.address, // _initialOwner
+            ethers.constants.AddressZero, // _governanceDAOAddress (set later)
+            lakshmiToken.address  // _lakshmiTokenAddress
+        )) as DonationVault;
         await donationVault.deployed();
 
         // Deploy a mock GovernanceDAO (using the actual contract for simplicity in testing interface)
-        // For more isolated tests, you might use a dedicated mock contract.
+        // Constructor: constructor(address _lakshmiTokenAddress, uint256 _votingDelay, uint256 _votingPeriod, uint256 _proposalThreshold, uint256 _quorumVotes, uint256 _thresholdPercentage, address _initialOwner)
         const GovernanceDAOFactory = await ethers.getContractFactory("GovernanceDAO");
         mockGovernanceDAO = (await GovernanceDAOFactory.deploy(
-            lakshmiToken.address, // LAK token address
-            7 * 24 * 60 * 60,   // voting period (7 days)
-            10,                 // quorum (10%)
-            51                  // approval threshold (51%)
+            lakshmiToken.address,   // _lakshmiTokenAddress
+            0,                      // _votingDelay (blocks)
+            7 * 24 * 60 * 60 / 13,  // _votingPeriod (approx 7 days in blocks, assuming 13s block time)
+            ethers.utils.parseEther("100"), // _proposalThreshold
+            ethers.utils.parseEther("0"),   // _quorumVotes (not token weighted, sum of numVotes)
+            50,                     // _thresholdPercentage (50 for >50%)
+            owner.address           // _initialOwner
         )) as GovernanceDAO;
         await mockGovernanceDAO.deployed();
 
@@ -136,9 +152,17 @@ describe("DonationVault", function () {
         let mockZRC20: LakshmiZRC20; // Using LakshmiZRC20 as a generic ZRC20 for testing
 
         beforeEach(async function () {
+            const chainId = (await ethers.provider.getNetwork()).chainId;
             // Deploy a mock ZRC20 token for testing donations
             const MockZRC20Factory = await ethers.getContractFactory("LakshmiZRC20"); // Use LAK as mock
-            mockZRC20 = (await MockZRC20Factory.deploy(ethers.utils.parseEther("100000"))) as LakshmiZRC20;
+            mockZRC20 = (await MockZRC20Factory.deploy(
+                ethers.utils.parseEther("100000"), // initialSupply
+                owner.address, // treasuryAddress
+                chainId,
+                2000000, // gasLimit
+                ethers.constants.AddressZero, // systemContract
+                ethers.constants.AddressZero  // gatewayAddress
+            )) as LakshmiZRC20;
             await mockZRC20.deployed();
 
             // Transfer some mockZRC20 to donors
@@ -317,12 +341,21 @@ describe("DonationVault", function () {
     describe("Fund Release (ZRC20)", function () {
         const proposalId = 10; // Using a distinct proposal ID for ZRC20 tests
         let mockZRC20: LakshmiZRC20;
-        const erc20ReleaseAmount = ethers.utils.parseEther("50");
+        let erc20ReleaseAmount: BigNumber; // Define type, initialize in beforeEach
 
         beforeEach(async function () {
+            erc20ReleaseAmount = ethers.utils.parseEther("50"); // Initialize here
+            const chainId = (await ethers.provider.getNetwork()).chainId;
             // Deploy and fund mock ZRC20
             const MockZRC20Factory = await ethers.getContractFactory("LakshmiZRC20");
-            mockZRC20 = (await MockZRC20Factory.deploy(ethers.utils.parseEther("10000"))) as LakshmiZRC20;
+            mockZRC20 = (await MockZRC20Factory.deploy(
+                ethers.utils.parseEther("10000"), // initialSupply
+                owner.address, // treasuryAddress
+                chainId,
+                2000000, // gasLimit
+                ethers.constants.AddressZero, // systemContract
+                ethers.constants.AddressZero  // gatewayAddress
+            )) as LakshmiZRC20;
             await mockZRC20.deployed();
             await mockZRC20.connect(owner).transfer(donor1.address, ethers.utils.parseEther("1000"));
             await mockZRC20.connect(donor1).approve(donationVault.address, erc20ReleaseAmount.mul(2));
@@ -382,8 +415,16 @@ describe("DonationVault", function () {
             await owner.sendTransaction({ to: donationVault.address, value: ethers.utils.parseEther("1") });
 
             // Fund vault with ZRC20
+            const chainId = (await ethers.provider.getNetwork()).chainId;
             const MockZRC20Factory = await ethers.getContractFactory("LakshmiZRC20");
-            mockZRC20 = (await MockZRC20Factory.deploy(ethers.utils.parseEther("1000"))) as LakshmiZRC20;
+            mockZRC20 = (await MockZRC20Factory.deploy(
+                ethers.utils.parseEther("1000"), // initialSupply
+                owner.address, // treasuryAddress
+                chainId,
+                2000000, // gasLimit
+                ethers.constants.AddressZero, // systemContract
+                ethers.constants.AddressZero  // gatewayAddress
+            )) as LakshmiZRC20;
             await mockZRC20.deployed();
             await mockZRC20.connect(owner).transfer(donationVault.address, ethers.utils.parseEther("50")); // Direct transfer for setup
         });

@@ -19,7 +19,7 @@ const ProposalsPage: React.FC = () => {
 
   const [filterStatus, setFilterStatus] = useState<Proposal['status'] | 'All'>('All');
 
-  const filteredProposals = proposals.filter(proposal =>
+  const filteredProposals = proposals.filter((proposal: Proposal) => // Explicitly type proposal here
     filterStatus === 'All' ? true : proposal.status === filterStatus
   );
 

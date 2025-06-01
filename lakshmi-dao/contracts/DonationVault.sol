@@ -82,8 +82,12 @@ contract DonationVault is Ownable /*, ReentrancyGuard */ {
      * @param _governanceDAOAddress The initial address of the GovernanceDAO contract.
      * @param _lakshmiTokenAddress The address of the LUCK token (optional, can be address(0)).
      */
-    constructor(address _initialOwner, address _governanceDAOAddress, address _lakshmiTokenAddress) Ownable(_initialOwner) {
+    constructor(address _initialOwner, address _governanceDAOAddress, address _lakshmiTokenAddress) Ownable() {
         // _governanceDAOAddress can be address(0) initially if set later by owner
+        // Set initial owner using _transferOwnership directly if needed, Ownable() sets msg.sender
+        if (msg.sender != _initialOwner) { // Transfer ownership if _initialOwner is not deployer
+            _transferOwnership(_initialOwner);
+        }
         if (_governanceDAOAddress != address(0)) {
             governanceDAO = IGovernanceDAO(_governanceDAOAddress);
             emit GovernanceDAOUpdated(address(0), _governanceDAOAddress);
@@ -285,89 +289,3 @@ contract DonationVault is Ownable /*, ReentrancyGuard */ {
         emit EtherDonated(msg.sender, msg.value, address(this).balance);
     }
 }
-```
-
-Key implementations and considerations:
-
-1.  **Donation Mechanism:**
-    *   `donateEther()`: Payable function for ETH donations.
-    *   `receive()`: Fallback to also accept ETH donations directly sent to the contract address. Both log `EtherDonated`.
-    *   `donateZRC20()`: Takes `tokenContract` and `amount`, uses `SafeERC20.safeTransferFrom`.
-2.  **Fund Management:**
-    *   `ethDonationsByDonor` and `erc20DonationsByDonor` mappings track individual contributions.
-    *   `getVaultETHBalance()` returns `address(this).balance`.
-    *   `getVaultZRC20Balance()` returns `token.balanceOf(address(this))`.
-3.  **Governance Integration:**
-    *   `governanceDAO` state variable of type `IGovernanceDAO`.
-    *   `IGovernanceDAO` interface defined with `isProposalPassed(uint256)`.
-    *   `releaseFunds()` (for ETH) and `releaseZRC20Funds()`:
-        *   `onlyGovernance` modifier restricts access.
-        *   Checks `governanceDAO.isProposalPassed(proposalId)`.
-        *   Performs transfers.
-4.  **Ownership and Configuration:**
-    *   Inherits `Ownable` (constructor takes `_initialOwner`).
-    *   `setGovernanceDAO()`: Owner can update the `GovernanceDAO` address.
-    *   `setLakshmiTokenAddress()`: Owner can update the LUCK token address (optional).
-5.  **Emergency Measures:**
-    *   `emergencyWithdrawEther()`: Owner-only, withdraws ETH.
-    *   `emergencyWithdrawZRC20()`: Owner-only, withdraws specified ZRC20 tokens.
-6.  **Event Logging:** Comprehensive events for all significant actions are included.
-7.  **Security Considerations:**
-    *   Used `SafeERC20` for ZRC20 transfers.
-    *   Reentrancy Guard is commented out (`/*, ReentrancyGuard */`, `/* nonReentrant */`) as the current interactions are fairly direct. If more complex callbacks or interactions with untrusted contracts were added to the release functions *before* state changes, `ReentrancyGuard` would be more critical. The current structure largely follows checks-effects-interactions.
-    *   Access controls (`onlyOwner`, `onlyGovernance`) are applied.
-    *   Input validation (non-zero addresses, positive amounts) is included.
-8.  **NatSpec Comments:** Added for all public/external functions, state variables, and events.
-
-This structure should meet the specified requirements. The optional `lakshmiTokenAddress` is included but not strictly used in core donation/release logic, making the vault generally agnostic to ZRC20 token types for donations and releases. It could be used for future LUCK-specific features within the vault if needed.Your current task is: Generate the Solidity code for the `GovernanceDAO.sol` contract.
-
-**Filename:** `contracts/GovernanceDAO.sol`
-
-**Specifications:**
-1.  **Proposal Mechanism:**
-    *   Define a `Proposal` struct containing: `id`, `proposer`, `description` (string), `targetContract` (address for execution), `callData` (bytes for the function call), `value` (ETH to send with execution), `votingStartTime`, `votingEndTime`, `forVotes`, `againstVotes`, `abstainVotes`, `executed` (bool), `state` (enum: `Pending`, `Active`, `Succeeded`, `Defeated`, `Executed`, `Canceled`).
-    *   Allow LUCK token holders to create proposals via a `createProposal(string description, address targetContract, bytes callData, uint256 value)` function.
-2.  **Voting System:**
-    *   LUCK token holders can vote on active proposals: `vote(uint256 proposalId, VoteType voteType)` where `VoteType` is an enum (`For`, `Against`, `Abstain`).
-    *   Voting power should be proportional to the LUCK token balance of the voter at the time of voting (or snapshot if implemented, but simple balance check is fine for now).
-    *   Prevent double voting.
-3.  **Proposal Lifecycle & State Management:**
-    *   Proposals start in `Pending` or `Active` state.
-    *   A configurable `votingPeriod` (e.g., 7 days) determines how long a proposal remains active for voting.
-    *   After the `votingEndTime`:
-        *   Quorum Check: A proposal is `Defeated` if it doesn't meet a `quorumPercentage` (e.g., 10% of total LUCK supply participating).
-        *   Approval Check: If quorum is met, a proposal is `Succeeded` if `forVotes` meets an `approvalThresholdPercentage` (e.g., 66% of `forVotes + againstVotes`). Otherwise, it's `Defeated`.
-    *   A function `updateProposalStateAfterVoting(uint256 proposalId)` (callable by anyone) can be used to transition a proposal from `Active` to `Succeeded` or `Defeated` after `votingEndTime`.
-    *   Allow proposers or the DAO owner to `cancelProposal(uint256 proposalId)` if it's still `Pending` or `Active` (before voting ends).
-4.  **Execution:**
-    *   A function `executeProposal(uint256 proposalId)` should:
-        *   Verify the proposal is in `Succeeded` state.
-        *   Mark the proposal as `Executed`.
-        *   Make the external call to `targetContract.call{value: proposal.value}(proposal.callData)`.
-        *   Handle success/failure of the external call.
-        *   This function should be callable by anyone if the proposal has Succeeded (allowing for decentralized execution).
-5.  **Contract Interfaces:**
-    *   Requires an interface to the `LakshmiZRC20` token (for checking balances).
-    *   Requires an interface to the `DonationVault` (if proposals directly interact with it, e.g., to call `releaseFunds`).
-6.  **Parameters & Configuration (Owner-Controlled):**
-    *   `votingPeriod` (in seconds).
-    *   `quorumPercentage` (e.g., 10 for 10%).
-    *   `approvalThresholdPercentage` (e.g., 66 for 66%).
-    *   Address of the `DonationVault` contract (if needed for specific proposal types or direct interaction).
-    *   Address of the `LakshmiZRC20` (LUCK) token contract.
-    *   All these parameters should be settable by the contract owner.
-7.  **Ownership:**
-    *   Use OpenZeppelin's `Ownable.sol`.
-8.  **Event Logging:**
-    *   Emit events for: `ProposalCreated`, `Voted`, `ProposalStateChanged` (to Succeeded, Defeated, Executed, Canceled), `ParameterUpdated` (for voting period, quorum, etc.), `DonationVaultAddressSet`, `LakshmiTokenAddressSet`.
-9.  **Security & Best Practices:**
-    *   Protect against reentrancy if external calls are made before state changes (though `executeProposal` changing state first is good).
-    *   Ensure proper access controls.
-10. **NatSpec Comments:**
-    *   Provide comprehensive NatSpec comments.
-
-**Reference Contracts (Conceptual):**
-*   `LakshmiZRC20.sol`
-*   `DonationVault.sol`
-
-Focus on creating the `GovernanceDAO.sol` file in the `contracts/` directory. You may need to define simple interfaces for `ILakshmiZRC20` and `IDonationVault` within the file if they are not available as separate imports.

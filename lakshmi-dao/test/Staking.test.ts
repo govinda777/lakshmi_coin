@@ -13,8 +13,7 @@ describe("Staking Contract", function () {
   let ownerAddress: string;
   let staker1Address: string;
   let staker2Address: string;
-
-  const initialLuckSupply = ethers.utils.parseUnits("10000000", 18); // 10 million LUCK
+  let initialLuckSupply: BigNumber; // Moved to beforeEach
   const rewardRateForTests = BigNumber.from("3170979198"); // Approx 10% APY (0.000000003170979198 LUCK per LUCK per second)
   const REWARD_PRECISION = ethers.constants.WeiPerEther; // 1e18
 
@@ -28,19 +27,22 @@ describe("Staking Contract", function () {
     ownerAddress = await owner.getAddress();
     staker1Address = await staker1.getAddress();
     staker2Address = await staker2.getAddress();
+    initialLuckSupply = ethers.utils.parseUnits("10000000", 18); // Initialize here
+    const chainId = (await ethers.provider.getNetwork()).chainId;
 
     // Deploy LakshmiZRC20 ($LUCK token)
     const LuckTokenFactory = await ethers.getContractFactory("LakshmiZRC20");
-    luckToken = (await LuckTokenFactory.deploy()) as LakshmiZRC20; // Assuming simple constructor
+    luckToken = (await LuckTokenFactory.deploy(
+        initialLuckSupply,
+        ownerAddress, // treasuryAddress
+        chainId,
+        2000000, // gasLimit
+        ethers.constants.AddressZero, // systemContract
+        ethers.constants.AddressZero  // gatewayAddress
+    )) as LakshmiZRC20;
     await luckToken.deployed();
 
-    // Mint initial supply to owner (if constructor doesn't)
-    // This depends on your LakshmiZRC20 implementation
-    if (typeof luckToken.mint === "function") {
-        await luckToken.connect(owner).mint(ownerAddress, initialLuckSupply);
-    } else {
-        console.warn("Mint function not found on LakshmiZRC20 or not callable by owner. Assuming supply handled otherwise.");
-    }
+    // Initial supply is minted to owner (deployer) in LakshmiZRC20 constructor.
 
     // Distribute some LUCK to stakers for testing
     await luckToken.connect(owner).transfer(staker1Address, ethers.utils.parseUnits("10000", 18));

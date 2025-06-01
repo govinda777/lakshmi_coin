@@ -8,9 +8,17 @@ export interface Proposal {
   proposer?: string; // Optional: if you want to display it
   status: 'Active' | 'Succeeded' | 'Defeated' | 'Executed' | 'Pending' | 'Canceled'; // Example statuses
   description?: string; // Short description
+  executed?: boolean; // Added field
+  // Fields from useProposals mapping (can be added if components need them)
+  votingStartTime?: number;
+  votingEndTime?: number;
   forVotes?: number | string; // Can be formatted string or number
   againstVotes?: number | string;
-  endDate?: string; // Formatted date string
+  abstainVotes?: number | string;
+  targetContract?: string;
+  callData?: string;
+  value?: string;
+  endDate?: string; // Formatted date string (derived from votingEndTime)
 }
 
 interface ProposalCardProps {

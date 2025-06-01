@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { useContractWrite, useWaitForTransaction, useAccount, useBalance, useSendTransaction } from 'wagmi';
+import React, { useState, useEffect } from 'react';
+import { useContractWrite, useWaitForTransaction, useAccount, useBalance, useSendTransaction, useNetwork } from 'wagmi';
 import { parseEther, formatEther } from 'ethers/lib/utils';
-// TODO: Import your DonationVault ABI and address
-// import { DONATION_VAULT_ABI, DONATION_VAULT_ADDRESS } from '../constants/contracts';
-// TODO: Import ZRC20 token ABI if you're supporting ZRC20 donations through the same interface
-// import { ERC20_ABI } from '../constants/abis'; // A generic ZRC20 ABI
+import { getLakshmiZrc20Address, DONATION_VAULT_ADDRESS_DEFAULT, LAKSHMI_ZRC20_ABI_PLACEHOLDER } from '../constants/contracts'; // Corrected relative path
+// TODO: Import your DonationVault ABI
+// import { DONATION_VAULT_ABI } from '../constants/contracts';
+
 
 // Placeholder - replace with your actual contract details
-const DONATION_VAULT_ADDRESS_PLACEHOLDER = "0xYourDonationVaultContractAddress";
+// For DonationVault, let's assume it uses the default address for now, or we can make it network-aware too.
+const DONATION_VAULT_ADDRESS_PLACEHOLDER = DONATION_VAULT_ADDRESS_DEFAULT; // Using default for now
 const DONATION_VAULT_ABI_PLACEHOLDER: any[] = [
     { "inputs": [], "name": "donateEther", "outputs": [], "stateMutability": "payable", "type": "function" },
     { "inputs": [{ "internalType": "address", "name": "tokenContract", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" }], "name": "donateERC20", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
@@ -20,12 +21,29 @@ const ERC20_ABI_PLACEHOLDER: any[] = [ // Generic ZRC20 approve function
 
 const DonatePage: React.FC = () => {
   const { address, isConnected } = useAccount();
+  const { chain } = useNetwork();
   const [ethAmount, setEthAmount] = useState('');
   const [erc20Amount, setErc20Amount] = useState('');
   const [erc20TokenAddress, setErc20TokenAddress] = useState('');
   const [donationType, setDonationType] = useState<'eth' | 'erc20'>('eth'); // Toggle between ETH and ZRC20
 
-  const { data: balanceData } = useBalance({ address: address });
+  const [lakshmiZrc20Addr, setLakshmiZrc20Addr] = useState<`0x${string}` | undefined>(undefined);
+
+  useEffect(() => {
+    if (chain) {
+      setLakshmiZrc20Addr(getLakshmiZrc20Address(chain.id));
+    } else {
+      setLakshmiZrc20Addr(getLakshmiZrc20Address(undefined)); // Attempt to get default if chain is undefined
+    }
+  }, [chain]);
+
+  const { data: nativeBalanceData } = useBalance({ address: address, watch: true });
+  const { data: luckBalanceData } = useBalance({
+    address: address,
+    token: lakshmiZrc20Addr,
+    watch: true,
+    enabled: !!lakshmiZrc20Addr, // Only fetch if address is resolved
+  });
 
   // --- ETH Donation ---
   const { data: sendTxData, isLoading: isSendingEth, sendTransaction } = useSendTransaction({
@@ -87,7 +105,8 @@ const DonatePage: React.FC = () => {
     }
 
     sendTransaction({
-        value: parseEther(ethAmount)
+        to: DONATION_VAULT_ADDRESS_PLACEHOLDER as `0x${string}`, // Ensure 'to' is included
+        value: parseEther(ethAmount).toBigInt()
     });
   };
 
@@ -135,7 +154,7 @@ const DonatePage: React.FC = () => {
         // if (isApprovalSuccess) { // Or if approval was already given
             console.log("Approval successful or assumed. Proceeding to donate ZRC20.");
             donateZRC20({
-                args: [erc20TokenAddress, parseEther(erc20Amount)],
+                args: [erc20TokenAddress, parseEther(erc20Amount).toBigInt()],
             });
         // } else {
         //    console.log("Waiting for approval to complete...");
@@ -156,11 +175,22 @@ const DonatePage: React.FC = () => {
     <div className="max-w-lg mx-auto p-6 bg-white shadow-xl rounded-lg mt-10">
       <h1 className="text-3xl font-bold text-center text-indigo-700 mb-8">Make a Donation</h1>
 
-      {balanceData && (
-        <p className="text-center text-gray-600 mb-6">
-          Your balance: {parseFloat(formatEther(balanceData.value)).toFixed(4)} {balanceData.symbol}
+      {nativeBalanceData && (
+        <p className="text-center text-gray-600 mb-2">
+          Native Balance: {parseFloat(formatEther(nativeBalanceData.value)).toFixed(4)} {nativeBalanceData.symbol}
         </p>
       )}
+      {lakshmiZrc20Addr && luckBalanceData && (
+        <p className="text-center text-gray-600 mb-6">
+          LUCK Balance: {parseFloat(formatEther(luckBalanceData.value)).toFixed(4)} {luckBalanceData.symbol}
+        </p>
+      )}
+      {!lakshmiZrc20Addr && isConnected && (
+        <p className="text-center text-orange-500 mb-6">
+          LUCK token not configured for the current network.
+        </p>
+      )}
+
 
       <div className="mb-6">
         <label className="inline-flex items-center mr-6">

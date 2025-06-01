@@ -9,12 +9,21 @@ describe("LakshmiZRC20", function () {
     let addr1: SignerWithAddress;
     let addr2: SignerWithAddress;
     const initialSupply = ethers.utils.parseEther("1000000"); // 1 million tokens
+    let chainId: number;
 
     beforeEach(async function () {
         [owner, addr1, addr2] = await ethers.getSigners();
+        chainId = (await ethers.provider.getNetwork()).chainId;
 
         const LakshmiZRC20Factory = await ethers.getContractFactory("LakshmiZRC20");
-        lakshmiToken = (await LakshmiZRC20Factory.deploy(initialSupply)) as LakshmiZRC20;
+        lakshmiToken = (await LakshmiZRC20Factory.deploy(
+            initialSupply,
+            owner.address, // treasuryAddress
+            chainId,
+            2000000, // gasLimit_
+            ethers.constants.AddressZero, // systemContract_
+            ethers.constants.AddressZero  // gatewayAddress_
+        )) as LakshmiZRC20;
         await lakshmiToken.deployed();
     });
 
@@ -30,8 +39,8 @@ describe("LakshmiZRC20", function () {
         });
 
         it("Should have the correct name and symbol", async function () {
-            expect(await lakshmiToken.name()).to.equal("Lakshmi Governance Token");
-            expect(await lakshmiToken.symbol()).to.equal("LAK");
+            expect(await lakshmiToken.name()).to.equal("Lakshmi ZRC20 Token");
+            expect(await lakshmiToken.symbol()).to.equal("LUCK");
         });
     });
 
@@ -79,24 +88,29 @@ describe("LakshmiZRC20", function () {
         });
     });
 
-    describe("Minting", function () {
-        it("Should allow owner to mint new tokens", async function () {
-            const mintAmount = ethers.utils.parseEther("5000");
-            await lakshmiToken.mint(addr1.address, mintAmount);
-            const addr1Balance = await lakshmiToken.balanceOf(addr1.address);
-            expect(addr1Balance).to.equal(mintAmount);
+    // describe("Minting", function () {
+    //     // Note: The base ZRC20 contract from ZetaChain does not provide a public owner-mintable function.
+    //     // Minting typically happens via `deposit` from the fungible module or system contracts.
+    //     // These tests are removed as `lakshmiToken.mint()` is not available.
+    //     // If owner-minting is a required feature, it would need to be added to LakshmiZRC20.sol explicitly.
+    //     it("Should allow owner to mint new tokens (REMOVED - ZRC20 base does not support this directly)", async function () {
+    //         // const mintAmount = ethers.utils.parseEther("5000");
+    //         // await lakshmiToken.mint(addr1.address, mintAmount); // This function does not exist on base ZRC20
+    //         // const addr1Balance = await lakshmiToken.balanceOf(addr1.address);
+    //         // expect(addr1Balance).to.equal(mintAmount);
+    //         // const newTotalSupply = initialSupply.add(mintAmount);
+    //         // expect(await lakshmiToken.totalSupply()).to.equal(newTotalSupply);
+    //         this.skip(); // Skip this test
+    //     });
 
-            const newTotalSupply = initialSupply.add(mintAmount);
-            expect(await lakshmiToken.totalSupply()).to.equal(newTotalSupply);
-        });
-
-        it("Should not allow non-owner to mint new tokens", async function () {
-            const mintAmount = ethers.utils.parseEther("5000");
-            await expect(
-                lakshmiToken.connect(addr1).mint(addr2.address, mintAmount)
-            ).to.be.revertedWith("Ownable: caller is not the owner");
-        });
-    });
+    //     it("Should not allow non-owner to mint new tokens (REMOVED - ZRC20 base does not support this directly)", async function () {
+    //         // const mintAmount = ethers.utils.parseEther("5000");
+    //         // await expect(
+    //         //     lakshmiToken.connect(addr1).mint(addr2.address, mintAmount)
+    //         // ).to.be.revertedWith("Ownable: caller is not the owner"); // Or function not found
+    //         this.skip(); // Skip this test
+    //     });
+    // });
 
     describe("Burning", function () {
         it("Should allow users to burn their own tokens", async function () {
@@ -145,11 +159,12 @@ describe("LakshmiZRC20", function () {
             ).to.be.revertedWith("Ownable: caller is not the owner");
         });
 
-        it("Should allow new owner to mint tokens", async function () {
+        it("Should allow new owner to call owner functions (e.g. setTreasuryAddress - if such functions existed and were tested)", async function () {
             await lakshmiToken.transferOwnership(addr1.address);
-            const mintAmount = ethers.utils.parseEther("1000");
-            await lakshmiToken.connect(addr1).mint(addr2.address, mintAmount);
-            expect(await lakshmiToken.balanceOf(addr2.address)).to.equal(mintAmount);
+            // Example: Test if new owner can call an Ownable function.
+            // As setTreasuryAddress is an Ownable function from LakshmiZRC20 itself:
+            await expect(lakshmiToken.connect(addr1).setTreasuryAddress(addr2.address)).to.not.be.reverted;
+            expect(await lakshmiToken.treasuryAddress()).to.equal(addr2.address);
         });
     });
 });

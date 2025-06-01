@@ -13,34 +13,29 @@ describe("Missions Contract", function () {
   let ownerAddress: string;
   let user1Address: string;
   let user2Address: string;
-
-  const initialLuckSupply = ethers.utils.parseUnits("1000000", 18); // 1 million LUCK
+  let initialLuckSupply: BigNumber; // Define type, initialize in beforeEach
 
   beforeEach(async function () {
     [owner, user1, user2] = await ethers.getSigners();
+    initialLuckSupply = ethers.utils.parseUnits("1000000", 18); // 1 million LUCK
+    const chainId = (await ethers.provider.getNetwork()).chainId;
     ownerAddress = await owner.getAddress();
     user1Address = await user1.getAddress();
     user2Address = await user2.getAddress();
 
     // Deploy LakshmiZRC20 ($LUCK token)
     const LuckTokenFactory = await ethers.getContractFactory("LakshmiZRC20");
-    // Assuming constructor for LakshmiZRC20 might take initial supply or mint to deployer
-    // For this test, let's assume it mints to the deployer (owner)
-    luckToken = (await LuckTokenFactory.deploy()) as LakshmiZRC20; // Or pass initialSupply if constructor expects it
+    luckToken = (await LuckTokenFactory.deploy(
+        initialLuckSupply,
+        ownerAddress, // treasuryAddress
+        chainId,
+        2000000, // gasLimit
+        ethers.constants.AddressZero, // systemContract
+        ethers.constants.AddressZero  // gatewayAddress
+    )) as LakshmiZRC20;
     await luckToken.deployed();
 
-    // Manually mint tokens to owner if constructor doesn't, or ensure supply exists
-    // This depends on LakshmiZRC20.sol. If it has `mint(address, amount)`:
-    if (typeof luckToken.mint === "function") {
-        await luckToken.connect(owner).mint(ownerAddress, initialLuckSupply);
-    } else {
-        // If no mint function or it's not standard, ensure owner has tokens some other way for tests
-        // This might involve a different constructor for LakshmiZRC20 for testing
-        console.warn("LakshmiZRC20 mint function not found or owner has no initial supply. Assuming owner has LUCK tokens through other means for tests.");
-        // As a fallback, try a common pattern if it exists:
-        // await luckToken.transfer(ownerAddress, initialLuckSupply); // If tokens are minted to contract first
-    }
-
+    // Initial supply is minted to owner (deployer) in LakshmiZRC20 constructor.
 
     // Deploy Missions contract
     const MissionsFactory = await ethers.getContractFactory("Missions");
@@ -69,9 +64,15 @@ describe("Missions Contract", function () {
   });
 
   describe("Mission Creation", function () {
-    const missionName = "Test Mission 1";
-    const missionDesc = "Complete task X";
-    const rewardAmount = ethers.utils.parseUnits("100", 18); // 100 LUCK
+    let missionName: string;
+    let missionDesc: string;
+    let rewardAmount: BigNumber;
+
+    beforeEach(function() { // Changed to non-async as it's just assignments
+        missionName = "Test Mission 1";
+        missionDesc = "Complete task X";
+        rewardAmount = ethers.utils.parseUnits("100", 18); // 100 LUCK
+    });
 
     it("Should allow owner to create a mission", async function () {
       await expect(
@@ -105,14 +106,18 @@ describe("Missions Contract", function () {
   });
 
   describe("Mission Completion and Reward Claiming", function () {
-    const missionName = "Test Mission for Claim";
-    const missionDesc = "Claim test";
-    const rewardAmount = ethers.utils.parseUnits("100", 18);
-    const missionId = 1;
+    let missionNameClaim: string; // Renamed to avoid conflict
+    let missionDescClaim: string;
+    let rewardAmountClaim: BigNumber;
+    const missionId = 1; // Assuming missionId will be 1 for the first created mission
 
     beforeEach(async function () {
+      missionNameClaim = "Test Mission for Claim";
+      missionDescClaim = "Claim test";
+      rewardAmountClaim = ethers.utils.parseUnits("100", 18);
+
       // Create a mission
-      await missionsContract.connect(owner).createMission(missionName, missionDesc, rewardAmount);
+      await missionsContract.connect(owner).createMission(missionNameClaim, missionDescClaim, rewardAmountClaim);
 
       // Fund the Missions contract with LUCK tokens
       const totalRewardFund = ethers.utils.parseUnits("500", 18);

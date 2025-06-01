@@ -125,7 +125,10 @@ contract GovernanceDAO is Ownable {
         uint256 _quorumVotes,
         uint256 _thresholdPercentage,
         address _initialOwner
-    ) Ownable(_initialOwner) {
+    ) Ownable() {
+        if (msg.sender != _initialOwner && _initialOwner != address(0)) {
+             _transferOwnership(_initialOwner);
+        }
         require(_lakshmiTokenAddress != address(0), "DAO: LUCK token is zero address");
         require(_votingPeriod > 0, "DAO: Voting period must be > 0");
         require(_thresholdPercentage <= 100, "DAO: Threshold percentage cannot exceed 100"); // Can be 0 if desired
@@ -176,7 +179,7 @@ contract GovernanceDAO is Ownable {
         uint256 currentBlock = block.number;
         uint256 voteStart = currentBlock + votingDelay;
         uint256 voteEnd = voteStart + votingPeriod;
-        newProposal.voteEndBlock.setDeadline(voteEnd); // Stores the end block
+        newProposal.voteEndBlock.setDeadline(uint64(voteEnd)); // Stores the end block
         // To get start block, it would be voteEnd - votingPeriod. Or store it separately.
         // For simplicity, we'll use a helper `getProposalVoteStartBlock`.
 
@@ -197,6 +200,16 @@ contract GovernanceDAO is Ownable {
     // --- Voting ---
 
     /**
+     * @notice Casts a vote on a proposal without providing a reason.
+     * @param proposalId The ID of the proposal to vote on.
+     * @param support The type of vote: 0 for Against, 1 for For, 2 for Abstain.
+     * @param numVotes The number of votes to cast. Voter must hold at least `numVotes^2` LUCK tokens.
+     */
+    function castVote(uint256 proposalId, uint8 support, uint256 numVotes) external {
+        castVoteWithReason(proposalId, support, numVotes, string(""));
+    }
+
+    /**
      * @notice Casts a vote on a proposal.
      * @param proposalId The ID of the proposal to vote on.
      * @param support The type of vote: 0 for Against, 1 for For, 2 for Abstain.
@@ -208,8 +221,8 @@ contract GovernanceDAO is Ownable {
         uint256 proposalId,
         uint8 support,
         uint256 numVotes,
-        string calldata reason // Optional: reason for voting
-    ) external {
+        string memory reason // Optional: reason for voting
+    ) public { // Changed to public so castVote can call it
         Proposal storage p = proposals[proposalId];
         require(state(proposalId) == ProposalState.Active, "DAO: Proposal not active for voting");
         require(!p.voters[msg.sender].hasVoted, "DAO: Voter already voted");
@@ -231,17 +244,6 @@ contract GovernanceDAO is Ownable {
 
         emit VoteCast(msg.sender, proposalId, support, numVotes, reason);
     }
-
-    /**
-     * @notice Casts a vote on a proposal without providing a reason.
-     * @param proposalId The ID of the proposal to vote on.
-     * @param support The type of vote: 0 for Against, 1 for For, 2 for Abstain.
-     * @param numVotes The number of votes to cast. Voter must hold at least `numVotes^2` LUCK tokens.
-     */
-    function castVote(uint256 proposalId, uint8 support, uint256 numVotes) external {
-        castVoteWithReason(proposalId, support, numVotes, "");
-    }
-
 
     // --- Execution & Cancellation ---
 
@@ -319,7 +321,7 @@ contract GovernanceDAO is Ownable {
 
         if (currentBlock < voteStartBlock) {
             return ProposalState.Pending;
-        } else if (!p.voteEndBlock.isExpired(currentBlock)) { // voteEndBlock stores the deadline
+        } else if (!p.voteEndBlock.isExpired()) { // voteEndBlock stores the deadline
             return ProposalState.Active;
         } else { // Voting has ended
             uint256 totalVotesCast = p.forVotes + p.againstVotes + p.abstainVotes;
@@ -378,8 +380,8 @@ contract GovernanceDAO is Ownable {
         returns (bool hasVoted, uint8 support, uint256 numVotes)
     {
         require(proposalId > 0 && proposalId <= proposalCount, "DAO: Invalid proposal ID");
-        VotedInfo storage VotedInfo = proposals[proposalId].voters[voter];
-        return (VotedInfo.hasVoted, VotedInfo.support, VotedInfo.numVotes);
+        VotedInfo storage votedInfoRecord = proposals[proposalId].voters[voter];
+        return (votedInfoRecord.hasVoted, votedInfoRecord.support, votedInfoRecord.numVotes);
     }
 
 
@@ -416,33 +418,3 @@ contract GovernanceDAO is Ownable {
     // Fallback to receive ETH, e.g., from proposal executions that send ETH to the DAO
     receive() external payable {}
 }
-
-```
-
-Key implementations and notes:
-
-1.  **Quadratic Voting:** `castVote` and `castVoteWithReason` require the voter to hold `numVotes * numVotes` LUCK tokens. The `numVotes` are then directly added to `forVotes`, `againstVotes`, or `abstainVotes`.
-2.  **Proposal Management:**
-    *   `Proposal` struct includes all specified fields. `voters` mapping uses `VotedInfo` struct.
-    *   `propose` function allows users meeting `proposalThreshold` to create proposals. It uses `Timers.BlockNumber` for `voteEndBlock`.
-    *   `signatures` array is included in the `ProposalCreated` event for potential UI use, but the core logic uses `calldatas`.
-3.  **Voting Mechanism:**
-    *   `castVoteWithReason` (and `castVote`) implement the voting logic.
-    *   Users can vote only once.
-    *   Voting power is based on current LUCK balance.
-4.  **Execution and Quorum:**
-    *   `votingDelay`, `votingPeriod`, `proposalThreshold`, `quorumVotes`, `thresholdPercentage` are configurable.
-    *   `state()` function determines the current state of a proposal based on block numbers, quorum, and threshold.
-        *   **Quorum:** `p.forVotes + p.againstVotes + p.abstainVotes >= quorumVotes`. (This is sum of `numVotes`, not token-weighted).
-        *   **Threshold:** `p.forVotes * 100 > (p.forVotes + p.againstVotes) * thresholdPercentage`. This means `forVotes` must be strictly greater than the percentage of non-abstain votes. If `thresholdPercentage` is 50, it means >50% For votes.
-    *   `execute()` function allows execution of `Succeeded` proposals. It iterates through targets and makes calls. Includes basic error handling for external calls.
-    *   `cancel()` allows proposer or owner to cancel proposals under specific conditions.
-5.  **Administrative Functions:** `updateVotingParameters` allows the owner to change governance settings.
-6.  **Events:** All specified events are included.
-7.  **NatSpec Comments:** Comprehensive comments are provided.
-8.  **ZetaChain `FUNGIBLE_MODULE_ADDRESS`:** No direct integration as per specification.
-9.  **Interfaces:** `ILakshmiZRC20` is used. `IDonationVault` is defined but not strictly required by this DAO's execution logic if all interactions are generic `call`s.
-10. **Timers:** OpenZeppelin's `Timers.BlockNumber` is used for managing vote start/end blocks. `voteEndBlock.setDeadline(voteEnd)` stores the end block. The start block is calculated as `voteEnd - votingPeriod`.
-11. **Simplicity:** Snapshotting for vote balances is not implemented to keep complexity down as per the prompt's implicit preference.
-
-This contract provides a fairly complete governance system with quadratic voting and configurable parameters. The quadratic voting implementation is direct: `numVotes^2` tokens are required, and `numVotes` are added to the tally. This means a user wanting to cast 10 votes needs 100 tokens, and those 10 votes count as 10 towards the proposal outcome.

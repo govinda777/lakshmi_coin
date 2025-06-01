@@ -1,8 +1,8 @@
 import { ethers } from "hardhat";
 import { expect } from "chai";
-import { Contract, Signer, BigNumber } from "ethers";
+import { Contract, Signer, BigNumber } from "ethers"; // Signer is not directly used, SignerWithAddress is typically used
 import { MerkleTree } from "merkletreejs";
-import *_keccak256 from "keccak256";
+import _keccak256 from "keccak256"; // Corrected import alias
 
 import { LakshmiZRC20 } from "../typechain-types/LakshmiZRC20"; // Adjust if typechain paths differ
 import { Airdrop } from "../typechain-types/Airdrop";
@@ -43,17 +43,20 @@ describe("Airdrop Contract", function () {
 
     // Deploy LakshmiZRC20 ($LUCK token)
     const LuckTokenFactory = await ethers.getContractFactory("LakshmiZRC20");
-    luckToken = (await LuckTokenFactory.deploy()) as LakshmiZRC20;
+    const initialLakshmiSupply = ethers.utils.parseUnits("2000000", 18); // Ensure enough for airdrop + other needs
+    const chainId = (await ethers.provider.getNetwork()).chainId;
+    luckToken = (await LuckTokenFactory.deploy(
+        initialLakshmiSupply,
+        ownerAddress, // treasuryAddress for LakshmiZRC20
+        chainId,
+        2000000, // gasLimit
+        ethers.constants.AddressZero, // systemContract
+        ethers.constants.AddressZero  // gatewayAddress
+    )) as LakshmiZRC20;
     await luckToken.deployed();
 
-    // Mint some LUCK to owner (assuming mint function exists)
-    const initialMintAmount = ethers.utils.parseUnits("1000000", 18);
-    if (typeof luckToken.mint === "function") {
-        await luckToken.connect(owner).mint(ownerAddress, initialMintAmount);
-    } else {
-        console.warn("LUCK token has no mint function. Owner may not have tokens for test funding.");
-    }
-
+    // Initial supply is minted to owner (deployer) in LakshmiZRC20 constructor.
+    // No separate mint call needed here.
 
     // Prepare Merkle Tree data for the airdrop
     recipients = [

@@ -14,11 +14,10 @@ describe("GovernanceDAO", function () {
     let proposer: SignerWithAddress;
     let recipient: SignerWithAddress; // For proposals that transfer funds
     let nonTokenHolder: SignerWithAddress;
-
-    const initialLakshmiSupply = ethers.utils.parseEther("1000000"); // 1M LAK
-    const votingPeriodSeconds = 3 * 24 * 60 * 60; // 3 days
-    const quorumPercentage = 10; // 10%
-    const approvalThresholdPercentage = 60; // 60% of (For + Against) votes
+    let initialLakshmiSupply: BigNumber;
+    let votingPeriodSeconds: number;
+    let quorumPercentage: number;
+    let approvalThresholdPercentage: number;
 
     async function increaseTime(seconds: number) {
         await network.provider.send("evm_increaseTime", [seconds]);
@@ -28,9 +27,22 @@ describe("GovernanceDAO", function () {
     beforeEach(async function () {
         [owner, voter1, voter2, voter3, proposer, recipient, nonTokenHolder] = await ethers.getSigners();
 
+        initialLakshmiSupply = ethers.utils.parseEther("1000000"); // 1M LAK
+        votingPeriodSeconds = 3 * 24 * 60 * 60; // 3 days
+        quorumPercentage = 10; // 10%
+        approvalThresholdPercentage = 60; // 60% of (For + Against) votes
+        const chainId = (await ethers.provider.getNetwork()).chainId;
+
         // Deploy LakshmiZRC20
         const LakshmiZRC20Factory = await ethers.getContractFactory("LakshmiZRC20");
-        lakshmiToken = (await LakshmiZRC20Factory.deploy(initialLakshmiSupply)) as LakshmiZRC20;
+        lakshmiToken = (await LakshmiZRC20Factory.deploy(
+            initialLakshmiSupply,
+            owner.address, // treasuryAddress
+            chainId,
+            2000000, // gasLimit
+            ethers.constants.AddressZero, // systemContract
+            ethers.constants.AddressZero  // gatewayAddress
+        )) as LakshmiZRC20;
         await lakshmiToken.deployed();
 
         // Distribute LAK tokens to voters and proposer
@@ -42,7 +54,11 @@ describe("GovernanceDAO", function () {
 
         // Deploy DonationVault
         const DonationVaultFactory = await ethers.getContractFactory("DonationVault");
-        donationVault = (await DonationVaultFactory.deploy(lakshmiToken.address)) as DonationVault;
+        donationVault = (await DonationVaultFactory.deploy(
+            owner.address, // _initialOwner
+            ethers.constants.AddressZero, // _governanceDAOAddress (set later by this test suite)
+            lakshmiToken.address
+        )) as DonationVault;
         await donationVault.deployed();
          // Fund the donation vault with some ETH for testing execution
         await owner.sendTransaction({ to: donationVault.address, value: ethers.utils.parseEther("10") });
@@ -52,9 +68,12 @@ describe("GovernanceDAO", function () {
         const GovernanceDAOFactory = await ethers.getContractFactory("GovernanceDAO");
         governanceDAO = (await GovernanceDAOFactory.deploy(
             lakshmiToken.address,
-            votingPeriodSeconds,
-            quorumPercentage,
-            approvalThresholdPercentage
+            0, // votingDelay (blocks for pending state)
+            votingPeriodSeconds, // votingPeriod (now in seconds, contract converts to blocks if needed or uses as is)
+            ethers.utils.parseEther("1000"), // proposalThreshold (e.g. 1000 LAK)
+            ethers.utils.parseEther("0"), // quorumVotes (sum of numVotes, not token weighted for this interpretation)
+            approvalThresholdPercentage,
+            owner.address // _initialOwner
         )) as GovernanceDAO;
         await governanceDAO.deployed();
 
@@ -103,10 +122,17 @@ describe("GovernanceDAO", function () {
     });
 
     describe("Proposal Creation", function () {
-        const description = "Test Proposal 1";
-        const target = ethers.Wallet.createRandom().address;
-        const callData = "0xabcdef";
-        const value = ethers.utils.parseEther("0");
+        let description: string;
+        let target: string;
+        let callData: string;
+        let value: BigNumber;
+
+        beforeEach(function() {
+            description = "Test Proposal 1";
+            target = ethers.Wallet.createRandom().address;
+            callData = "0xabcdef";
+            value = ethers.utils.parseEther("0");
+        });
 
         it("Should allow a token holder to create a proposal", async function () {
             const tx = await governanceDAO.connect(proposer).createProposal(description, target, callData, value);
@@ -234,14 +260,15 @@ describe("GovernanceDAO", function () {
 
     describe("Proposal State Transitions & Execution", function () {
         let proposalId: number;
-        const proposalDescription = "Execute Me";
-        // Calldata to call `emergencyWithdrawEther(address,uint256)` on DonationVault
-        const amountToRelease = ethers.utils.parseEther("1");
+        let proposalDescription: string;
+        let amountToRelease: BigNumber;
         let releaseFundsCallData: string;
 
 
         beforeEach(async function () {
-             releaseFundsCallData = donationVault.interface.encodeFunctionData("emergencyWithdrawEther", [
+            proposalDescription = "Execute Me";
+            amountToRelease = ethers.utils.parseEther("1");
+            releaseFundsCallData = donationVault.interface.encodeFunctionData("emergencyWithdrawEther", [
                 recipient.address,
                 amountToRelease
             ]);
