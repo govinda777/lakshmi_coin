@@ -1,0 +1,60 @@
+name: Lakshmi DAO CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "**" ] # Triggers on all branches for PRs
+
+jobs:
+  smart_contracts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./lakshmi-dao
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install backend dependencies
+        run: npm ci # Changed from npm install
+
+      - name: Compile smart contracts
+        run: npm run compile
+
+      - name: Run Hardhat tests
+        run: npm run test
+
+      - name: Run Cucumber BDD tests for contracts
+        run: npx cucumber-js
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./lakshmi-dao/frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install frontend dependencies
+        run: npm ci # Changed from npm install
+
+      - name: Run frontend tests (Jest/ESLint)
+        run: npm run test -- --watchAll=false
+
+      - name: Run Cucumber BDD tests for frontend
+        run: npx cucumber-js
+
+      - name: Build frontend application
+        run: npm run build
